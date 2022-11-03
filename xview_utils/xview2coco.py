@@ -146,7 +146,9 @@ def get_labels(fname,train_img_dir):
                         ].split(",")
                     ]
                 )
-                chips[i] = b_id
+                # chips[i] = b_id # original code
+                p = Path(b_id)
+                chips[i] = p.rename(p.with_suffix('.png'))# code to change .tif ending to .png
                 classes[i] = data["features"][i]["properties"]["type_id"]
 
                 image_name_to_annotation_ind[b_id].append(i)
