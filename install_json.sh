@@ -9,9 +9,11 @@
 # mv val_300_02.json /tmp
 
 wget https://determined-ai-xview-coco-dataset.s3.us-west-2.amazonaws.com/train_sliced_no_neg.tar.gz
-mv train_sliced_no_neg.tar.gz /tmp
-tar -xvf /tmp/train_sliced_no_neg.tar.gz -C /tmp
+# mv train_sliced_no_neg.tar.gz /tmp
+# tar -xvf /tmp/train_sliced_no_neg.tar.gz  -C /tmp
+tar -xvf train_sliced_no_neg.tar.gz 
 
 wget https://determined-ai-xview-coco-dataset.s3.us-west-2.amazonaws.com/val_sliced_no_neg.tar.gz
-mv val_sliced_no_neg.tar.gz /tmp
-tar -xvf /tmp/val_sliced_no_neg.tar.gz -C /tmp
+# mv val_sliced_no_neg.tar.gz /tmp
+# tar -xvf /tmp/val_sliced_no_neg.tar.gz -C /tmp
+tar -xvf val_sliced_no_neg.tar.gz 

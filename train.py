@@ -88,8 +88,10 @@ def main():
     #                                             'backend':'aws',
     #                                             'masks': False,
     #                                             }))
-    TRAIN_DATA_DIR='/tmp/train_sliced_no_neg/train_images_300_02/'
-    VAL_DATA_DIR='/tmp/val_sliced_no_neg/val_images_300_02/'
+    # TRAIN_DATA_DIR='/tmp/train_sliced_no_neg/train_images_300_02/'
+    # VAL_DATA_DIR='/tmp/val_sliced_no_neg/val_images_300_02/'
+    TRAIN_DATA_DIR='/run/determined/workdir/xview-torchvision-coco/train_sliced_no_neg/train_images_300_02/'
+    VAL_DATA_DIR='/run/determined/workdir/xview-torchvision-coco/val_sliced_no_neg/val_images_300_02/'
     dataset, num_classes =  build_xview_dataset(image_set='train',args=AttrDict({
                                                 'data_dir':TRAIN_DATA_DIR,
                                                 'backend':'local',
