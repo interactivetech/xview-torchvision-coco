@@ -1,5 +1,5 @@
 import torch
-from utils.data import build_xview_dataset, unwrap_collate_fn
+from utils.data import build_dataset,build_xview_dataset, unwrap_collate_fn
 from attrdict import AttrDict
 from utils.group_by_aspect_ratio import create_aspect_ratio_groups, GroupedBatchSampler
 from torchvision.models.detection import fcos_resnet50_fpn
@@ -77,31 +77,42 @@ def main():
     device = torch.device('cpu')
     cpu_device = torch.device('cpu')
     print("Loading data")
-    # TRAIN_DATA_DIR='/Users/mendeza/data/xview/train_sliced_no_neg/'
-    # VAL_DATA_DIR='/Users/mendeza/data/xview/val_sliced_no_neg/'
-    # dataset, num_classes =  build_xview_dataset(image_set='train',args=AttrDict({
-    #                                             'data_dir':TRAIN_DATA_DIR,
-    #                                             'backend':'local',
-    #                                             'masks': None,
+    
+    # dataset, num_classes = data = build_dataset(image_set="train", args=AttrDict({
+    #                                             'data_dir':'determined-ai-coco-dataset',
+    #                                             'backend':'aws',
+    #                                             'masks': False,
     #                                             }))
-    # dataset_test, _ = build_xview_dataset(image_set='val',args=AttrDict({
-    #                                             'data_dir':VAL_DATA_DIR,
-    #                                             'backend':'local',
-    #                                             'masks': None,
+    # dataset_test, _ = build_dataset(image_set="val", args=AttrDict({
+    #                                             'data_dir':'determined-ai-coco-dataset',
+    #                                             'backend':'aws',
+    #                                             'masks': False,
     #                                             }))
-    TRAIN_DATA_DIR='determined-ai-xview-coco-dataset/train_sliced_no_neg/train_images_300_02/'
-
-    dataset, n_classes = build_xview_dataset(image_set='train',args=AttrDict({
+    TRAIN_DATA_DIR='/tmp/train_sliced_no_neg/train_images_300_02/'
+    VAL_DATA_DIR='/tmp/val_sliced_no_neg/val_images_300_02/'
+    dataset, num_classes =  build_xview_dataset(image_set='train',args=AttrDict({
                                                 'data_dir':TRAIN_DATA_DIR,
-                                                'backend':'aws',
+                                                'backend':'local',
                                                 'masks': None,
                                                 }))
-    VAL_DATA_DIR='determined-ai-xview-coco-dataset/val_sliced_no_neg/val_images_300_02/'
-    dataset_test, n_classes = build_xview_dataset(image_set='val',args=AttrDict({
+    dataset_test, _ = build_xview_dataset(image_set='val',args=AttrDict({
                                                 'data_dir':VAL_DATA_DIR,
-                                                'backend':'aws',
+                                                'backend':'local',
                                                 'masks': None,
                                                 }))
+#     TRAIN_DATA_DIR='determined-ai-xview-coco-dataset/train_sliced_no_neg/train_images_300_02/'
+
+#     dataset, n_classes = build_xview_dataset(image_set='train',args=AttrDict({
+#                                                 'data_dir':TRAIN_DATA_DIR,
+#                                                 'backend':'aws',
+#                                                 'masks': None,
+#                                                 }))
+#     VAL_DATA_DIR='determined-ai-xview-coco-dataset/val_sliced_no_neg/val_images_300_02/'
+#     dataset_test, n_classes = build_xview_dataset(image_set='val',args=AttrDict({
+#                                                 'data_dir':VAL_DATA_DIR,
+#                                                 'backend':'aws',
+#                                                 'masks': None,
+#                                                 }))
     print("Creating data loaders")
     train_sampler = torch.utils.data.RandomSampler(dataset)
     test_sampler = torch.utils.data.SequentialSampler(dataset_test)
@@ -135,10 +146,11 @@ def main():
     start_time = time.time()
     model.train()
     for e in range(1):
-        bar = Bar('Processing', max=len(data_loader))
+        # bar = Bar('Processing', max=len(data_loader))
         it=0
+        pbar = tqdm(enumerate(data_loader),total=len(data_loader))
         # Train Batch
-        for ind, (images, targets) in enumerate(data_loader):
+        for ind, (images, targets) in pbar:
             optimizer.zero_grad()
             batch_time_start = time.time()
             images = list(image.to(device,non_blocking=True) for image in images)
@@ -154,10 +166,11 @@ def main():
             total_batch_time = time.time() - batch_time_start
             total_batch_time_str = str(datetime.timedelta(seconds=int(total_batch_time)))
             # print(f"Training time {total_batch_time_str}")
-            bar.suffix = ("Iter: {batch:4}/{iter:4}: {loss:4}.".format(batch=it, iter=len(data_loader),loss=loss_value))
-            bar.next()
+            # bar.suffix = ("Iter: {batch:4}/{iter:4}: {loss:4}.".format(batch=it, iter=len(data_loader),loss=loss_value))
+            # bar.next()
             it += 1
-        bar.finish()
+            pbar.set_postfix({'loss': loss_value})
+        # bar.finish()
             # break
         lr_scheduler.step()
 
