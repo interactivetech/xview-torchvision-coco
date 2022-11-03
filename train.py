@@ -2,7 +2,8 @@ import torch
 from utils.data import build_dataset,build_xview_dataset, unwrap_collate_fn
 from attrdict import AttrDict
 from utils.group_by_aspect_ratio import create_aspect_ratio_groups, GroupedBatchSampler
-from torchvision.models.detection import fcos_resnet50_fpn
+from utils.fcos import fcos_resnet50_fpn
+from torchvision.models.detection import ssd300_vgg16
 import time
 import datetime
 from tqdm import tqdm
@@ -73,8 +74,9 @@ def get_coco_api_from_dataset(dataset):
     return convert_to_coco_api(dataset)
 
 def main():
+    DEVICE='cuda'
     #Data loading code
-    device = torch.device('cpu')
+    device = torch.device(DEVICE)
     cpu_device = torch.device('cpu')
     print("Loading data")
     
@@ -88,10 +90,10 @@ def main():
     #                                             'backend':'aws',
     #                                             'masks': False,
     #                                             }))
-    # TRAIN_DATA_DIR='/tmp/train_sliced_no_neg/train_images_300_02/'
-    # VAL_DATA_DIR='/tmp/val_sliced_no_neg/val_images_300_02/'
-    TRAIN_DATA_DIR='/run/determined/workdir/xview-torchvision-coco/train_sliced_no_neg/train_images_300_02/'
-    VAL_DATA_DIR='/run/determined/workdir/xview-torchvision-coco/val_sliced_no_neg/val_images_300_02/'
+    TRAIN_DATA_DIR='/tmp/train_sliced_no_neg/train_images_300_02/'
+    VAL_DATA_DIR='/tmp/val_sliced_no_neg/val_images_300_02/'
+    # TRAIN_DATA_DIR='/run/determined/workdir/xview-torchvision-coco/train_sliced_no_neg/train_images_300_02/'
+    # VAL_DATA_DIR='/run/determined/workdir/xview-torchvision-coco/val_sliced_no_neg/val_images_300_02/'
     dataset, num_classes =  build_xview_dataset(image_set='train',args=AttrDict({
                                                 'data_dir':TRAIN_DATA_DIR,
                                                 'backend':'local',
@@ -120,18 +122,19 @@ def main():
     test_sampler = torch.utils.data.SequentialSampler(dataset_test)
 
     group_ids = create_aspect_ratio_groups(dataset, k=3)
-    train_batch_sampler = GroupedBatchSampler(train_sampler, group_ids, batch_size=16)
+    train_batch_sampler = GroupedBatchSampler(train_sampler, group_ids, batch_size=1)
 
     train_collate_fn = unwrap_collate_fn
     data_loader = torch.utils.data.DataLoader(
-        dataset, batch_sampler=train_batch_sampler, num_workers=2, collate_fn=train_collate_fn
+        dataset, batch_sampler=train_batch_sampler, num_workers=0, collate_fn=train_collate_fn
     )
 
     data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, batch_size=1, sampler=test_sampler, num_workers=2, collate_fn=train_collate_fn)
+        dataset_test, batch_size=1, sampler=test_sampler, num_workers=0, collate_fn=train_collate_fn)
     
     print("Create Model")
-    model = fcos_resnet50_fpn(pretrained=False,num_classes=91)
+    # model = fcos_resnet50_fpn(pretrained=False,num_classes=91)
+    model = ssd300_vgg16(pretrained=False,num_classes=91)
     model.to(device)
     parameters = [p for p in model.parameters() if p.requires_grad]
     

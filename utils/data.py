@@ -232,8 +232,8 @@ def build_xview_dataset(image_set, args):
     # }
     # FOR DETERMINED TRAINING, ASSUME AT START OF EXP YOU DOWNLOAD TRAINING JSON FILE
     PATHS = {
-        "train": (os.path.join(root), os.path.join('/run/determined/workdir/xview-torchvision-coco/train_sliced_no_neg/',"train_300_02.json")),
-        "val": (os.path.join(root), os.path.join('/run/determined/workdir/xview-torchvision-coco/val_sliced_no_neg/',"val_300_02.json")),
+        "train": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02.json")),
+        "val": (os.path.join(root), os.path.join('/tmp/val_sliced_no_neg/',"val_300_02.json")),
     }
     print("PATHS: ",PATHS)
     # ~/data/coco_dataset/annotations/
