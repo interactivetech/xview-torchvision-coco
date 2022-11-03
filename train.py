@@ -6,6 +6,8 @@ from torchvision.models.detection import fcos_resnet50_fpn
 import time
 import datetime
 from tqdm import tqdm
+from progress.bar import Bar
+
 import torchvision
 from pycocotools import mask as coco_mask
 from pycocotools.coco import COCO
@@ -109,11 +111,11 @@ def main():
 
     train_collate_fn = unwrap_collate_fn
     data_loader = torch.utils.data.DataLoader(
-        dataset, batch_sampler=train_batch_sampler, num_workers=0, collate_fn=train_collate_fn
+        dataset, batch_sampler=train_batch_sampler, num_workers=2, collate_fn=train_collate_fn
     )
 
     data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, batch_size=1, sampler=test_sampler, num_workers=0, collate_fn=train_collate_fn)
+        dataset_test, batch_size=1, sampler=test_sampler, num_workers=2, collate_fn=train_collate_fn)
     
     print("Create Model")
     model = fcos_resnet50_fpn(pretrained=False,num_classes=91)
@@ -133,8 +135,10 @@ def main():
     start_time = time.time()
     model.train()
     for e in range(1):
+        bar = Bar('Processing', max=len(data_loader))
+        it=0
         # Train Batch
-        for ind, (images, targets) in tqdm(enumerate(data_loader),total=len(data_loader)):
+        for ind, (images, targets) in enumerate(data_loader):
             optimizer.zero_grad()
             batch_time_start = time.time()
             images = list(image.to(device,non_blocking=True) for image in images)
@@ -143,16 +147,18 @@ def main():
             losses_reduced = sum(loss for loss in loss_dict.values())
             loss_value = losses_reduced.item()
             # if ind %10 == 0:
-            print("loss: ",loss_value)
-            print("losses_reduced: ",losses_reduced)
+            # print("loss: ",loss_value)
+            # print("losses_reduced: ",losses_reduced)
             losses_reduced.backward()
             optimizer.step()
             total_batch_time = time.time() - batch_time_start
             total_batch_time_str = str(datetime.timedelta(seconds=int(total_batch_time)))
-            print(f"Training time {total_batch_time_str}")
+            # print(f"Training time {total_batch_time_str}")
+            bar.suffix = ("Iter: {batch:4}/{iter:4}: {loss:4}.".format(batch=it, iter=len(data_loader),loss=loss_value))
+            bar.next()
+            it += 1
+        bar.finish()
             # break
-            if ind ==0:
-                break
         lr_scheduler.step()
 
         # Eval
@@ -176,7 +182,6 @@ def main():
                 evaluator_time = time.time() - evaluator_time
                 evaluator_time_str = str(datetime.timedelta(seconds=int(evaluator_time)))
                 print("COCO Eval Time: ",evaluator_time_str)
-                break
 
         # accumulate predictions from all images
         coco_evaluator.accumulate()
