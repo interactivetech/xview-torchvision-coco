@@ -25,7 +25,8 @@ def unwrap_collate_fn(batch):
 
 class S3Backend:
     def __init__(self, bucket_name):
-        self._storage_client = boto3.client("s3")
+        self._storage_client  = boto3.client('s3', aws_access_key_id='', aws_secret_access_key='')
+        self._storage_client ._request_signer.sign = (lambda *args, **kwargs: None)
         self._bucket = bucket_name
 
     def convert_filepath(self, filepath):
@@ -49,7 +50,9 @@ class S3Backend:
 
 class S3Backend2:
     def __init__(self, bucket_name):
-        self._storage_client = boto3.client("s3")
+        self._storage_client  = boto3.client('s3', aws_access_key_id='', aws_secret_access_key='')
+        self._storage_client ._request_signer.sign = (lambda *args, **kwargs: None)
+        self._bucket = bucket_name
 
         self._bucket = bucket_name
 

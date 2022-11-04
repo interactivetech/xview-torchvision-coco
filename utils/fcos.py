@@ -645,7 +645,7 @@ class FCOS(nn.Module):
         
         # compute the fcos heads outputs using the features
         head_outputs = self.head(features)
-        print([f.shape for f in features])
+        # print([f.shape for f in features])
         # create the set of anchors
         anchors = self.anchor_generator(images, features)
         # recover level sizes
