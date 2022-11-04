@@ -3,6 +3,7 @@ from utils.data import build_dataset,build_xview_dataset, unwrap_collate_fn
 from attrdict import AttrDict
 from utils.group_by_aspect_ratio import create_aspect_ratio_groups, GroupedBatchSampler
 from utils.fcos import fcos_resnet50_fpn
+# from torchvision.models.detection import fcos_resnet50_fpn
 from torchvision.models.detection import ssd300_vgg16
 import time
 import datetime
@@ -13,6 +14,10 @@ import torchvision
 from pycocotools import mask as coco_mask
 from pycocotools.coco import COCO
 from utils.coco_eval import CocoEvaluator
+
+def collate_fn(batch):
+    return tuple(list(zip(*batch)))
+
 def convert_to_coco_api(ds):
     coco_ds = COCO()
     # annotation IDs need to start at 1, not 0, see torchvision issue #1530
@@ -151,7 +156,7 @@ def main():
     print("Start training")
     start_time = time.time()
     model.train()
-    for e in range(26):
+    for e in range(1):
         # bar = Bar('Processing', max=len(data_loader))
         it=0
         pbar = tqdm(enumerate(data_loader),total=len(data_loader))
@@ -176,6 +181,9 @@ def main():
             # bar.next()
             it += 1
             pbar.set_postfix({'loss': loss_value})
+            # if ind>100:
+            break
+            # break
         # bar.finish()
             # break
         lr_scheduler.step()
@@ -188,11 +196,15 @@ def main():
         for ind, (images, targets) in tqdm(enumerate(data_loader_test),total=len(data_loader_test)):
             with torch.no_grad():
                 model_time = time.time()
-                outputs = model(images)
-
-                outputs = [{k: v.to(cpu_device) for k, v in t.items()} for t in outputs]
+                images = list(img.to(device) for img in images)
+                loss_dict, outputs = model(images)
+                # print(type(outputs[0]))
+                # print(outputs)
+                outputss = []
+                for t in outputs:
+                    outputss.append({k: v.to(cpu_device) for k, v in t.items()})
                 model_time = time.time() - model_time
-                res = {target["image_id"].item(): output for target, output in zip(targets, outputs)}
+                res = {target["image_id"].item(): output for target, output in zip(targets, outputss)}
                 model_time_str = str(datetime.timedelta(seconds=int(model_time)))
                 print("Model Time: ",model_time_str)
 
@@ -201,7 +213,7 @@ def main():
                 evaluator_time = time.time() - evaluator_time
                 evaluator_time_str = str(datetime.timedelta(seconds=int(evaluator_time)))
                 print("COCO Eval Time: ",evaluator_time_str)
-
+        
         # accumulate predictions from all images
         coco_evaluator.accumulate()
         coco_evaluator.summarize()

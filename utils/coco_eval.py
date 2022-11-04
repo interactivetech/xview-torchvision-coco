@@ -54,15 +54,103 @@ class CocoEvaluator:
         for iou_type, coco_eval in self.coco_eval.items():
             print(f"IoU metric: {iou_type}")
             coco_eval.summarize()
+            # per class mAP metrics
+            results_per_category = self.per_class_coco_ap(self.coco_gt, coco_eval)
+            results_per_category50 = self.per_class_coco_ap(self.coco_gt, coco_eval)
+            self.print_per_class_metrics(results_per_category,results_per_category50)
+    def print_per_class_metrics(self,results_per_category,results_per_category50):
+            cls_names = []
+            average = 0
+            print("Per Class AP:")
+            for i in results_per_category:
+                    cls_name = i[0]
+                    cls_names.append(i[0])
+                    mAP_val = float(i[1])
+                    average+=mAP_val
+                    print(cls_name,mAP_val)
+            average/=len(cls_names)
+            print("mean coco AP: ",average)
+            cls_names = []
+            average = 0
+            for i in results_per_category50:
+                    cls_name = i[0]
+                    cls_names.append(i[0])
+                    mAP_val = float(i[1])
+                    average+=mAP_val
+                    print(cls_name+"_50: ", mAP_val)
+            average/=len(cls_names)
+            print("mean coco AP@50: ",average)
+            # per class mAP50 metrics
 
+    def per_class_coco_ap(self,coco,coco_eval):
+      results_per_category=[]
+      precisions = coco_eval.eval['precision']
+      cats =  [i['id'] for i in coco.cats.values()]
+      # print(cats)
+      for idx, catId in enumerate(cats):
+          # print(catId)
+          # area range index 0: all area ranges
+          # max dets index -1: typically 100 per image
+          nm = coco.loadCats([catId])
+          # print(nm[0]['name'])
+          # print("precisions: ",precisions.shape)
+          precision = precisions[:, :, idx, 0, -1]
+          # print("precision:", precision.shape)
+          # for ind, row in enumerate(precision):
+              # print(ind,row)
+          precision = precision[precision > -1]
+          if precision.size:
+              ap = np.mean(precision)
+          else:
+              ap = float('nan')
+          results_per_category.append(
+              (f'{nm[0]["name"]}', f'{float(ap):0.6f}'))
+      return results_per_category
+    def per_class_coco_ap50(self, coco,coco_eval):
+        results_per_category=[]
+        cats =  [i['id'] for i in coco.cats.values()]
+        def _get_thr_ind(coco_eval, thr):
+            ind = np.where((coco_eval.params.iouThrs > thr - 1e-5) &
+                           (coco_eval.params.iouThrs < thr + 1e-5))[0][0]
+            iou_thr = coco_eval.params.iouThrs[ind]
+            assert np.isclose(iou_thr, thr)
+            return ind
+
+        IoU_lo_thresh = 0.5
+        IoU_hi_thresh = 0.5
+        ind_lo = _get_thr_ind(coco_eval, IoU_lo_thresh)
+        ind_hi = _get_thr_ind(coco_eval, IoU_hi_thresh)
+        # precision has dims (iou, recall, cls, area range, max dets)
+        # area range index 0: all area ranges
+        # max dets index 2: 100 per image
+        precision = coco_eval.eval['precision'][ind_lo:(ind_hi + 1), :, :, 0, 2]
+        ap_default = np.mean(precision[precision > -1])
+        print(
+            '~~~~ Mean and per-category AP @ IoU=[{:.2f},{:.2f}] ~~~~'.format(
+                IoU_lo_thresh, IoU_hi_thresh))
+        print('{:.1f}'.format(100 * ap_default))
+        for cls_ind, cls in enumerate(cats):
+            if cls == '__background__':
+                continue
+            # minus 1 because of __background__
+            nm = coco.loadCats([cls])
+            # print(nm)
+            precision = coco_eval.eval['precision'][
+                ind_lo:(ind_hi + 1), :, cls_ind - 1, 0, 2]
+            ap = precision[precision > -1]
+            ap = np.mean(precision[precision > -1])
+            # print(cls,nm[0]['name'],cls_ind,ap)
+            results_per_category.append(
+                (f'{nm[0]["name"]}', f'{float(ap):0.6f}'))
+        return results_per_category
     def prepare(self, predictions, iou_type):
-        if iou_type == "bbox":
-            return self.prepare_for_coco_detection(predictions)
-        if iou_type == "segm":
-            return self.prepare_for_coco_segmentation(predictions)
-        if iou_type == "keypoints":
-            return self.prepare_for_coco_keypoint(predictions)
-        raise ValueError(f"Unknown iou type {iou_type}")
+            if iou_type == "bbox":
+                return self.prepare_for_coco_detection(predictions)
+            if iou_type == "segm":
+                return self.prepare_for_coco_segmentation(predictions)
+            if iou_type == "keypoints":
+                return self.prepare_for_coco_keypoint(predictions)
+            raise ValueError(f"Unknown iou type {iou_type}")
 
     def prepare_for_coco_detection(self, predictions):
         coco_results = []
