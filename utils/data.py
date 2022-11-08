@@ -150,6 +150,8 @@ class CocoDetection(torchvision.datasets.CocoDetection):
             self.backend = GCSBackend(root_dir)
         elif backend == "aws":
             self.backend = S3Backend2(root_dir)
+        elif backend == "aws1":
+            self.backend = S3Backend(root_dir)
         else:
             raise NotImplementedError
 

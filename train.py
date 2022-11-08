@@ -8,13 +8,27 @@ from torchvision.models.detection import ssd300_vgg16
 import time
 import datetime
 from tqdm import tqdm
-from progress.bar import Bar
 
 import torchvision
 from pycocotools import mask as coco_mask
 from pycocotools.coco import COCO
 from utils.coco_eval import CocoEvaluator
+import math
+from lr_schedulers import WarmupWrapper
+from torch.optim.lr_scheduler import MultiStepLR
 
+def make_custom_object_detection_model_fcos(num_classes):
+    model = torchvision.models.detection.fcos_resnet50_fpn(pretrained=True)  # load an object detection model pre-trained on COCO
+    num_anchors = model.head.classification_head.num_anchors
+    model.head.classification_head.num_classes = num_classes
+    out_channels = model.head.classification_head.conv[9].out_channels
+    cls_logits = torch.nn.Conv2d(out_channels, num_anchors * num_classes, kernel_size=3, stride=1, padding=1)
+    torch.nn.init.normal_(cls_logits.weight, std=0.01)
+    torch.nn.init.constant_(cls_logits.bias, -math.log((1 - 0.01) / 0.01))
+
+    model.head.classification_head.cls_logits = cls_logits
+
+    return model
 def collate_fn(batch):
     return tuple(list(zip(*batch)))
 
@@ -82,17 +96,17 @@ def main():
     DEVICE='cuda'
     #Data loading code
     device = torch.device(DEVICE)
-    cpu_device = torch.device('cpu')
+    cpu_device = torch.device(DEVICE)
     print("Loading data")
     
     # dataset, num_classes = data = build_dataset(image_set="train", args=AttrDict({
     #                                             'data_dir':'determined-ai-coco-dataset',
-    #                                             'backend':'aws',
+    #                                             'backend':'aws1',
     #                                             'masks': False,
     #                                             }))
     # dataset_test, _ = build_dataset(image_set="val", args=AttrDict({
     #                                             'data_dir':'determined-ai-coco-dataset',
-    #                                             'backend':'aws',
+    #                                             'backend':'aws1',
     #                                             'masks': False,
     #                                             }))
     # TRAIN_DATA_DIR='/tmp/train_sliced_no_neg/train_images_300_02/'
@@ -117,6 +131,7 @@ def main():
                                                 'backend':'aws',
                                                 'masks': None,
                                                 }))
+    print("num_classes: ",num_classes)
     VAL_DATA_DIR='determined-ai-xview-coco-dataset/val_sliced_no_neg/val_images_300_02/'
     dataset_test, _ = build_xview_dataset(image_set='val',args=AttrDict({
                                                 'data_dir':VAL_DATA_DIR,
@@ -140,6 +155,7 @@ def main():
     
     print("Create Model")
     model = fcos_resnet50_fpn(pretrained=False,num_classes=num_classes)
+    # model = make_custom_object_detection_model_fcos(num_classes)
     # model = ssd300_vgg16(pretrained=False,num_classes=91)
     model.to(device)
     parameters = [p for p in model.parameters() if p.requires_grad]
@@ -151,13 +167,27 @@ def main():
             weight_decay=1e-4,
             nesterov="nesterov",
         )
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[16,22], gamma=0.1)
-
+    # optimizer = torch.optim.SGD(
+    #         parameters,
+    #         lr=1e-4,
+    #         momentum=0.9,
+    #         weight_decay=1e-4,
+    #         nesterov="nesterov",
+    #     )
+    # lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[16,22], gamma=0.1)
+    scheduler_cls = WarmupWrapper(MultiStepLR)
+    scheduler = scheduler_cls(
+        'linear',  # warmup schedule
+        1000,  # warmup_iters
+        0.001,  # warmup_ratio
+        optimizer,
+        [177429, 236572],  # milestones
+        0.1,  # gamma
+    )
     print("Start training")
     start_time = time.time()
     model.train()
-    for e in range(1):
-        # bar = Bar('Processing', max=len(data_loader))
+    for e in range(2):
         it=0
         pbar = tqdm(enumerate(data_loader),total=len(data_loader))
         # Train Batch
@@ -177,16 +207,16 @@ def main():
             total_batch_time = time.time() - batch_time_start
             total_batch_time_str = str(datetime.timedelta(seconds=int(total_batch_time)))
             # print(f"Training time {total_batch_time_str}")
-            # bar.suffix = ("Iter: {batch:4}/{iter:4}: {loss:4}.".format(batch=it, iter=len(data_loader),loss=loss_value))
-            # bar.next()
             it += 1
             pbar.set_postfix({'loss': loss_value})
+            
+            print(ind, scheduler.get_lr())
+            scheduler.step()
             # if ind>100:
-            break
             # break
-        # bar.finish()
             # break
-        lr_scheduler.step()
+            # break
+        # lr_scheduler.step()
 
         # Eval
         coco = get_coco_api_from_dataset(data_loader.dataset)
@@ -206,13 +236,13 @@ def main():
                 model_time = time.time() - model_time
                 res = {target["image_id"].item(): output for target, output in zip(targets, outputss)}
                 model_time_str = str(datetime.timedelta(seconds=int(model_time)))
-                print("Model Time: ",model_time_str)
+                # print("Model Time: ",model_time_str)
 
                 evaluator_time = time.time()
                 coco_evaluator.update(res)
                 evaluator_time = time.time() - evaluator_time
                 evaluator_time_str = str(datetime.timedelta(seconds=int(evaluator_time)))
-                print("COCO Eval Time: ",evaluator_time_str)
+                # print("COCO Eval Time: ",evaluator_time_str)
         
         # accumulate predictions from all images
         coco_evaluator.accumulate()

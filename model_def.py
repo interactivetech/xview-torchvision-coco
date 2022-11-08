@@ -13,7 +13,9 @@ import time
 import datetime
 from pycocotools.coco import COCO
 from torch.optim.lr_scheduler import MultiStepLR
-from utils.model import get_mv3_fcos_fpn, get_resnet_fcos, get_mobileone_s4_fpn_fcos
+from utils.fcos import fcos_resnet50_fpn
+
+# from utils.model import get_mv3_fcos_fpn, get_resnet_fcos, get_mobileone_s4_fpn_fcos
 # from model_mobileone import get_mobileone_s4_fpn_fcos
 from lr_schedulers import WarmupWrapper
 
@@ -25,7 +27,7 @@ from determined.pytorch import (
     PyTorchTrialContext,
     MetricReducer,
 )
-from coco_eval import CocoEvaluator
+# from coco_eval import CocoEvaluator
 
 # def unwrap_collate_fn(batch):
 #     batch = list(zip(*batch))
@@ -155,11 +157,12 @@ class ObjectDetectionTrial(PyTorchTrial):
         # define model
         print("self.hparams[model]: ",self.hparams['model'] )
         if self.hparams['model'] == 'resnet_fcos':
-            model = get_resnet_fcos(91)
-        elif self.hparams['model'] == 'mv3_fcos':
-            model= get_mv3_fcos_fpn(91)
-        elif self.hparams['model'] == 'mobileone_fcos':
-            model = get_mobileone_s4_fpn_fcos(91)
+            # model = get_resnet_fcos(91)
+            model = fcos_resnet50_fpn(pretrained=False,num_classes=61)
+        # elif self.hparams['model'] == 'mv3_fcos':
+        #     model= get_mv3_fcos_fpn(91)
+        # elif self.hparams['model'] == 'mobileone_fcos':
+        #     model = get_mobileone_s4_fpn_fcos(91)
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         print("Converted all BatchNorm*D layers in the model to torch.nn.SyncBatchNorm layers.")
         self.model = self.context.wrap_model(model)

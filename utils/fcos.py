@@ -797,7 +797,7 @@ def fcos_resnet50_fpn(
     # model = FCOS(backbone, num_classes, **kwargs)
     # default: min_size=800, max_size=1333
     # Andrew(08/26/22): direct pretrain on small image, then finetune on 800,1333
-    model = FCOS(backbone, num_classes,min_size=300,max_size=300, **kwargs)
+    model = FCOS(backbone, num_classes,min_size=800,max_size=1333, **kwargs)
 
 
     if weights is not None:
