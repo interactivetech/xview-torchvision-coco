@@ -25,12 +25,12 @@ class CocoEvaluator:
         self.img_ids = []
         self.eval_imgs = {k: [] for k in iou_types}
 
-    def update(self, predictions):
+    def update(self, predictions,remap_dict=None):
         img_ids = list(np.unique(list(predictions.keys())))
         self.img_ids.extend(img_ids)
 
         for iou_type in self.iou_types:
-            results = self.prepare(predictions, iou_type)
+            results = self.prepare(predictions, iou_type,remap_dict)
             with redirect_stdout(io.StringIO()):
                 coco_dt = COCO.loadRes(self.coco_gt, results) if results else COCO()
             coco_eval = self.coco_eval[iou_type]
@@ -55,12 +55,13 @@ class CocoEvaluator:
             print(f"IoU metric: {iou_type}")
             coco_eval.summarize()
             # per class mAP metrics
-            results_per_category = self.per_class_coco_ap(self.coco_gt, coco_eval)
-            results_per_category50 = self.per_class_coco_ap(self.coco_gt, coco_eval)
-            self.print_per_class_metrics(results_per_category,results_per_category50)
+        results_per_category = self.per_class_coco_ap(self.coco_gt, self.coco_eval['bbox'])
+        results_per_category50 = self.per_class_coco_ap50(self.coco_gt, self.coco_eval['bbox'])
+        self.print_per_class_metrics(results_per_category,results_per_category50)
     def print_per_class_metrics(self,results_per_category,results_per_category50):
             cls_names = []
             average = 0
+            cnt = 0 # keep track of how many have a value (not nan)
             print("Per Class AP:")
             for i in results_per_category:
                     cls_name = i[0]
@@ -68,19 +69,22 @@ class CocoEvaluator:
                     mAP_val = float(i[1])
                     if not math.isnan(mAP_val):
                         average+=mAP_val
+                        cnt+=1
                     print(cls_name,mAP_val)
-            average/=len(cls_names)
+            average/=cnt
             print("mean coco AP: ",average)
             cls_names = []
             average = 0
+            cnt = 0 # keep track of how many have a value (not nan)
             for i in results_per_category50:
                     cls_name = i[0]
                     cls_names.append(i[0])
                     mAP_val = float(i[1])
                     if not math.isnan(mAP_val):
                         average+=mAP_val
+                        cnt+=1
                     print(cls_name+"_50: ", mAP_val)
-            average/=len(cls_names)
+            average/=cnt
             print("mean coco AP@50: ",average)
             # per class mAP50 metrics
 
@@ -101,6 +105,7 @@ class CocoEvaluator:
           # for ind, row in enumerate(precision):
               # print(ind,row)
           precision = precision[precision > -1]
+          # print("precision, precision.size: ",precision,precision.size)
           if precision.size:
               ap = np.mean(precision)
           else:
@@ -140,14 +145,15 @@ class CocoEvaluator:
             precision = coco_eval.eval['precision'][
                 ind_lo:(ind_hi + 1), :, cls_ind - 1, 0, 2]
             ap = precision[precision > -1]
+            # print("ap, ap.size: ",ap,ap.size)
             ap = np.mean(precision[precision > -1])
             # print(cls,nm[0]['name'],cls_ind,ap)
             results_per_category.append(
                 (f'{nm[0]["name"]}', f'{float(ap):0.6f}'))
         return results_per_category
-    def prepare(self, predictions, iou_type):
+    def prepare(self, predictions, iou_type,remap_dict=None):
             if iou_type == "bbox":
-                return self.prepare_for_coco_detection(predictions)
+                return self.prepare_for_coco_detection(predictions,remap_dict)
             if iou_type == "segm":
                 return self.prepare_for_coco_segmentation(predictions)
             if iou_type == "keypoints":
@@ -158,7 +164,7 @@ class CocoEvaluator:
             return label
         else:
             return label-1
-    def prepare_for_coco_detection(self, predictions):
+    def prepare_for_coco_detection(self, predictions,remap_dict=None):
         coco_results = []
         for original_id, prediction in predictions.items():
             if len(prediction) == 0:
@@ -174,7 +180,7 @@ class CocoEvaluator:
                 [
                     {
                         "image_id": original_id,
-                        "category_id": labels[k],
+                        "category_id": remap_dict[labels[k]],
                         "bbox": box,
                         "score": scores[k],
                     }

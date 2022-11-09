@@ -670,11 +670,11 @@ class FCOS(nn.Module):
             detections = self.postprocess_detections(split_head_outputs, split_anchors, images.image_sizes)
             detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
             # (Andrew 8/19/2022 - compute losses and detection)
-            # if targets is None:
-            #     torch._assert(False, "targets should not be none when in training mode")
-            # else:
-            #     # compute the losses
-            #     losses = self.compute_loss(targets, head_outputs, anchors, num_anchors_per_level)
+            if targets is None:
+                torch._assert(False, "targets should not be none when in val mode")
+            else:
+                # compute the losses
+                losses = self.compute_loss(targets, head_outputs, anchors, num_anchors_per_level)
         if torch.jit.is_scripting():
             if not self._has_warned:
                 warnings.warn("FCOS always returns a (Losses, Detections) tuple in scripting")

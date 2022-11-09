@@ -14,20 +14,22 @@ from pycocotools import mask as coco_mask
 import utils.transforms as T
 
 
-class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, transforms, return_masks):
-        super(CocoDetection, self).__init__(img_folder, ann_file)
-        self._transforms = transforms
-        self.prepare = ConvertCocoPolysToMask(return_masks)
-
-    def __getitem__(self, idx):
-        img, target = super(CocoDetection, self).__getitem__(idx)
-        image_id = self.ids[idx]
-        target = {'image_id': image_id, 'annotations': target}
-        img, target = self.prepare(img, target)
-        if self._transforms is not None:
-            img, target = self._transforms(img, target)
-        return img, target
+# class CocoDetection(torchvision.datasets.CocoDetection):
+#     def __init__(self, img_folder, ann_file, transforms, return_masks):
+#         super(CocoDetection, self).__init__(img_folder, ann_file)
+#         self._transforms = transforms
+#         self.prepare = ConvertCocoPolysToMask(return_masks)
+#         print(self.coco)
+#         cat_ids = sorted(self.coco.getCatIds())
+#         label_map = {v: i for i, v in enumerate(cat_ids)}
+#     def __getitem__(self, idx):
+#         img, target = super(CocoDetection, self).__getitem__(idx)
+#         image_id = self.ids[idx]
+#         target = {'image_id': image_id, 'annotations': target}
+#         img, target = self.prepare(img, target)
+#         if self._transforms is not None:
+#             img, target = self._transforms(img, target)
+#         return img, target
 
 
 def convert_coco_poly_to_mask(segmentations, height, width):

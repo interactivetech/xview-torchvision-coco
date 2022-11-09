@@ -11,6 +11,7 @@ mv train_300_02_1k.json /tmp/train_sliced_no_neg/train_300_02_1k.json
 wget "https://determined-ai-xview-coco-dataset.s3.us-west-2.amazonaws.com/val_sliced_no_neg/val_300_02_1k.json"
 mkdir /tmp/val_sliced_no_neg
 mv val_300_02_1k.json /tmp/val_sliced_no_neg/val_300_02_1k.json
+# mv val_300_02.json /tmp/val_sliced_no_neg/val_300_02.json
 
 # wget https://determined-ai-xview-coco-dataset.s3.us-west-2.amazonaws.com/train_sliced_no_neg.tar.gz
 # mv train_sliced_no_neg.tar.gz /tmp

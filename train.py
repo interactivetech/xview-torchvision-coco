@@ -16,6 +16,7 @@ from utils.coco_eval import CocoEvaluator
 import math
 from lr_schedulers import WarmupWrapper
 from torch.optim.lr_scheduler import MultiStepLR
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 def make_custom_object_detection_model_fcos(num_classes):
     model = fcos_resnet50_fpn(pretrained=True)  # load an object detection model pre-trained on COCO
@@ -33,6 +34,37 @@ def make_custom_object_detection_model_fcos(num_classes):
     torch.nn.init.constant_(cls_logits.bias, -math.log((1 - 0.01) / 0.01))
 
     model.head.classification_head.cls_logits = cls_logits
+
+def build_frcnn_model(num_classes):
+    # load an detection model pre-trained on COCO
+    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+
+    # get the number of input features for the classifier
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    # replace the pre-trained head with a new one
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+    model.min_size=800
+    model.max_size=1333
+    # RPN parameters
+    model.rpn_pre_nms_top_n_train=2000
+    model.rpn_pre_nms_top_n_test=1000
+    model.rpn_post_nms_top_n_train=2000
+    model.rpn_post_nms_top_n_test=1000
+    model.rpn_nms_thresh=0.7
+    model.rpn_fg_iou_thresh=0.7
+    model.rpn_bg_iou_thresh=0.3
+    model.rpn_batch_size_per_image=256
+    model.rpn_positive_fraction=0.5
+    model.rpn_score_thresh=0.0
+    # Box parameters
+    model.box_score_thresh=0.05
+    model.box_nms_thresh=0.5
+    model.box_detections_per_img=100
+    model.box_fg_iou_thresh=0.5
+    model.box_bg_iou_thresh=0.5
+    model.box_batch_size_per_image=512
+    model.box_positive_fraction=0.25
+    return model
 
     return model
 def collate_fn(batch):
@@ -143,7 +175,14 @@ def main():
                                                 'data_dir':VAL_DATA_DIR,
                                                 'backend':'aws',
                                                 'masks': None,
-                                                }))
+                                               }))
+    # FOR DEBUG PURPOSES
+    # VAL_DATA_DIR='determined-ai-xview-coco-dataset/train_sliced_no_neg/train_images_300_02/'
+    # dataset_test, _ = build_xview_dataset(image_set='val',args=AttrDict({
+    #                                             'data_dir':VAL_DATA_DIR,
+    #                                             'backend':'aws',
+    #                                             'masks': None,
+    #                                             }))
     print("Creating data loaders")
     # train_sampler = torch.utils.data.RandomSampler(dataset)
     test_sampler = torch.utils.data.SequentialSampler(dataset_test)
@@ -153,22 +192,23 @@ def main():
 
     train_collate_fn = unwrap_collate_fn
     data_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=16,batch_sampler=None,shuffle=True, num_workers=2, collate_fn=train_collate_fn
+        dataset, batch_size=8,batch_sampler=None,shuffle=True, num_workers=2, collate_fn=train_collate_fn
     )
 
     data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, batch_size=1, sampler=test_sampler, num_workers=0, collate_fn=train_collate_fn)
+        dataset_test, batch_size=8, sampler=test_sampler, num_workers=2, collate_fn=train_collate_fn)
     
     print("Create Model")
     # model = fcos_resnet50_fpn(pretrained=False,num_classes=num_classes+1)
-    model = make_custom_object_detection_model_fcos(num_classes)
+    # model = make_custom_object_detection_model_fcos(dataset.num_classes)
+    model = build_frcnn_model(dataset.num_classes)
     # model = ssd300_vgg16(pretrained=False,num_classes=91)
     model.to(device)
     # parameters = [p for p in model.parameters() if p.requires_grad]
     
     optimizer = torch.optim.SGD(
             model.parameters(),
-            lr=1e-3,
+            lr=0.01,
             momentum=0.9,
             weight_decay=1e-4,
             nesterov="nesterov",
@@ -194,8 +234,9 @@ def main():
     start_time = time.time()
     
     losses = []
+    it=0
     for e in range(20):
-        it=0
+        
         pbar = tqdm(enumerate(data_loader),total=len(data_loader))
         # Train Batch
         model.train()
@@ -213,6 +254,7 @@ def main():
             losses_reduced.backward()
             optimizer.step()
             with torch.no_grad():
+                # print(losses_reduced)
                 loss_value = losses_reduced.item()
             total_batch_time = time.time() - batch_time_start
             total_batch_time_str = str(datetime.timedelta(seconds=int(total_batch_time)))
@@ -220,8 +262,14 @@ def main():
             if it%10==0:
                 losses.append(loss_value)
             it += 1
-            pbar.set_postfix({'loss': loss_value})
-            print(ind, scheduler.get_lr())
+            loss_str = []
+            loss_str.append("{}: {}".format("loss","{:.3f}".format(loss_value)))
+            for name, val in loss_dict.items():
+                loss_str.append(
+                    "{}: {}".format(name, "{:.3f}".format(val) )
+                )
+                pbar.set_postfix({'loss': loss_str})
+            print(it, scheduler.get_last_lr())
             scheduler.step()
             # if ind>100:
             # break
@@ -230,20 +278,36 @@ def main():
         # lr_scheduler.step()
 
             # Eval
-        coco = get_coco_api_from_dataset(data_loader.dataset)
+        coco = get_coco_api_from_dataset(data_loader_test.dataset)
         iou_types = ['bbox']
         coco_evaluator = CocoEvaluator(coco, iou_types)
         torch.save(model,'model.pth')
         model.eval()
-        for ind, (images, targets) in tqdm(enumerate(data_loader_test),total=len(data_loader_test)):
+        pbar = tqdm(enumerate(data_loader_test),total=len(data_loader_test))
+        for ind, (images, targets) in pbar:
             with torch.no_grad():
                 model_time = time.time()
                 images = list(img.to(device) for img in images)
-                loss_dict, outputs = model(images)
+                targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+                # loss_dict, outputs = model(images,targets)
+                outputs = model(images)
+                losses_reduced = sum(loss for loss in loss_dict.values())
+                # with torch.no_grad():
+                    # print("loss_dict: ",loss_dict)
+                    # print(" losses_reduced val: ",losses_reduced)
+                loss_value = losses_reduced.item()
                 # outputs = model(images)
 
                 # print(type(outputs[0]))
                 # print(outputs)
+#                 loss_str = []
+#                 loss_str.append("{}: {}".format("loss","{:.3f}".format(loss_value)))
+
+#                 for name, val in loss_dict.items():
+#                     loss_str.append(
+#                         "{}: {}".format(name, "{:.3f}".format(val) )
+#                     )
+#                     pbar.set_postfix({'loss': loss_str})
                 outputss = []
                 for t in outputs:
                     outputss.append({k: v.to(cpu_device) for k, v in t.items()})
@@ -253,7 +317,8 @@ def main():
                 # print("Model Time: ",model_time_str)
 
                 evaluator_time = time.time()
-                coco_evaluator.update(res)
+                # print("data_loader_test.dataset.catIdtoCls: ",data_loader_test.dataset.clstoCatId)
+                coco_evaluator.update(res,remap_dict=data_loader_test.dataset.clstoCatId)
                 evaluator_time = time.time() - evaluator_time
                 evaluator_time_str = str(datetime.timedelta(seconds=int(evaluator_time)))
                 # print("COCO Eval Time: ",evaluator_time_str)

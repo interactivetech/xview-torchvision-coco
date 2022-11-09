@@ -4,7 +4,8 @@ __pycache__/
 *$py.class
 
 db/*
-
+*.pth
+*.log
 # C extensions
 *.so
 

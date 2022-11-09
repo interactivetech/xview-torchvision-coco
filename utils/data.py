@@ -156,20 +156,31 @@ class CocoDetection(torchvision.datasets.CocoDetection):
             raise NotImplementedError
 
         self.catIds = catIds
+        # print(self.coco)
+        # print(self.catIds )
+        # self.catIdtoCls=None
         # filtering based on id will result in examples that contain certain class(i.e. [21] images with only cow annotations)
-        if len(catIds):# if catIds is empty, return examples with all categories
-            self.ids = self.coco.getImgIds(catIds=catIds)
-            self.catIdtoCls = {
-                catId: i for i, catId in zip(range(len(self.catIds)), self.catIds)
-            }
-        if len(self.catIds) == 0:
-            cat_ids = sorted(self.coco.getCatIds())
-            # print("cat_ids: ",cat_ids)
-            self.num_classes = len(self.coco.getCatIds())+1
-        else:
-            self.num_classes = len(self.catIds)
-
-
+        # if len(catIds):# if catIds is empty, return examples with all categories
+        self.catIds = self.coco.getCatIds()
+        # print("self.ids: ",self.ids)
+        '''
+        Remapping to set background class to zero, so can support FasterRCNN models
+        '''
+        self.catIdtoCls = {
+            catId: i+1 for i, catId in zip(range(len(self.catIds)), self.catIds)
+        }
+        self.clstoCatId = {
+            v:k for k,v in self.catIdtoCls.items()
+        }
+        print("self.catIdtoCls: ",self.catIdtoCls)
+        # if len(self.catIds) == 0:
+        #     cat_ids = sorted(self.coco.getCatIds())
+        #     # print("cat_ids: ",cat_ids)
+        #     self.num_classes = len(self.coco.getCatIds())+1
+        # else:
+        #     self.num_classes = len(self.catIds)
+        # print("self.catIdtoCls: ",self.catIdtoCls)
+        self.num_classes = len(list(self.catIdtoCls.values()))+1
 
     def __getitem__(self, idx):
         coco = self.coco
@@ -186,11 +197,15 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         img, target = self.prepare(img, target)
         if self._transforms is not None:
             img, target = self._transforms(img, target)
-        if len(self.catIds):
-            target["labels"] = torch.tensor(
+        # print(target["labels"])
+        target["labels"] = torch.tensor(
                 [self.catIdtoCls[l.item()] for l in target["labels"]], dtype=torch.int64
             )
-
+        # print(target["labels"])
+        # if len(self.catIds):
+        #     target["labels"] = torch.tensor(
+        #         [self.catIdtoCls[l.item()] for l in target["labels"]], dtype=torch.int64
+        #     )
         return img, target
 
     def __len__(self):
@@ -237,8 +252,12 @@ def build_xview_dataset(image_set, args):
     # }
     # FOR DETERMINED TRAINING, ASSUME AT START OF EXP YOU DOWNLOAD TRAINING JSON FILE
     PATHS = {
-        "train": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02_1k.json")),
-        "val": (os.path.join(root), os.path.join('/tmp/val_sliced_no_neg/',"val_300_02_1k.json")),
+        # "train": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02_1k.json")),
+        # "val": (os.path.join(root), os.path.join('/tmp/val_sliced_no_neg/',"val_300_02_1k.json")),
+        "train": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02.json")),
+        "val": (os.path.join(root), os.path.join('/tmp/val_sliced_no_neg/',"val_300_02.json")),
+        # "val": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02_1k.json")),
+
     }
     print("PATHS: ",PATHS)
     # ~/data/coco_dataset/annotations/
