@@ -8,7 +8,7 @@ import torch
 import utils
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
-
+import math
 
 class CocoEvaluator:
     def __init__(self, coco_gt, iou_types):
@@ -66,7 +66,8 @@ class CocoEvaluator:
                     cls_name = i[0]
                     cls_names.append(i[0])
                     mAP_val = float(i[1])
-                    average+=mAP_val
+                    if not math.isnan(mAP_val):
+                        average+=mAP_val
                     print(cls_name,mAP_val)
             average/=len(cls_names)
             print("mean coco AP: ",average)
@@ -76,7 +77,8 @@ class CocoEvaluator:
                     cls_name = i[0]
                     cls_names.append(i[0])
                     mAP_val = float(i[1])
-                    average+=mAP_val
+                    if not math.isnan(mAP_val):
+                        average+=mAP_val
                     print(cls_name+"_50: ", mAP_val)
             average/=len(cls_names)
             print("mean coco AP@50: ",average)
@@ -151,7 +153,11 @@ class CocoEvaluator:
             if iou_type == "keypoints":
                 return self.prepare_for_coco_keypoint(predictions)
             raise ValueError(f"Unknown iou type {iou_type}")
-
+    def convert_label(self,label):
+        if label== 0:
+            return label
+        else:
+            return label-1
     def prepare_for_coco_detection(self, predictions):
         coco_results = []
         for original_id, prediction in predictions.items():
@@ -162,6 +168,7 @@ class CocoEvaluator:
             boxes = convert_to_xywh(boxes).tolist()
             scores = prediction["scores"].tolist()
             labels = prediction["labels"].tolist()
+            # print("labels: ",labels)
 
             coco_results.extend(
                 [

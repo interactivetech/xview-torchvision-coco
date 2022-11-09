@@ -428,6 +428,7 @@ class FCOS(nn.Module):
             image_mean = [0.485, 0.456, 0.406]
         if image_std is None:
             image_std = [0.229, 0.224, 0.225]
+            # print("min_size, max_size, image_mean, image_std: ",min_size, max_size, image_mean, image_std,)
         self.transform = GeneralizedRCNNTransform(min_size, max_size, image_mean, image_std, **kwargs)
 
         self.center_sampling_radius = center_sampling_radius
@@ -611,10 +612,10 @@ class FCOS(nn.Module):
                 f"expecting the last two dimensions of the Tensor to be H and W instead got {img.shape[-2:]}",
             )
             original_image_sizes.append((val[0], val[1]))
-
+        # print("original_image_sizes: ",original_image_sizes)
         # transform the input
         images, targets = self.transform(images, targets)
-
+        # print("images: ",images.image_sizes)
         # Check for degenerate boxes
         if targets is not None:
             for target_idx, target in enumerate(targets):
@@ -785,7 +786,6 @@ def fcos_resnet50_fpn(
         num_classes = _ovewrite_value_param(num_classes, len(weights.meta["categories"]))
     elif num_classes is None:
         num_classes = 91
-
     is_trained = weights is not None or weights_backbone is not None
     trainable_backbone_layers = _validate_trainable_layers(is_trained, trainable_backbone_layers, 5, 3)
     norm_layer = misc_nn_ops.FrozenBatchNorm2d if is_trained else nn.BatchNorm2d

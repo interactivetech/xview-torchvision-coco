@@ -18,9 +18,15 @@ from lr_schedulers import WarmupWrapper
 from torch.optim.lr_scheduler import MultiStepLR
 
 def make_custom_object_detection_model_fcos(num_classes):
-    model = torchvision.models.detection.fcos_resnet50_fpn(pretrained=True)  # load an object detection model pre-trained on COCO
+    model = fcos_resnet50_fpn(pretrained=True)  # load an object detection model pre-trained on COCO
+    model.score_thresh = 0.05
+    model.nms_thresh = 0.4
+    model.detections_per_img = 300
+    model.topk_candidates = 300
     num_anchors = model.head.classification_head.num_anchors
     model.head.classification_head.num_classes = num_classes
+    print("FOCS num_classes: ",model.head.classification_head.num_classes)
+
     out_channels = model.head.classification_head.conv[9].out_channels
     cls_logits = torch.nn.Conv2d(out_channels, num_anchors * num_classes, kernel_size=3, stride=1, padding=1)
     torch.nn.init.normal_(cls_logits.weight, std=0.01)
@@ -131,7 +137,7 @@ def main():
                                                 'backend':'aws',
                                                 'masks': None,
                                                 }))
-    print("num_classes: ",num_classes)
+    print("--num_classes: ",num_classes)
     VAL_DATA_DIR='determined-ai-xview-coco-dataset/val_sliced_no_neg/val_images_300_02/'
     dataset_test, _ = build_xview_dataset(image_set='val',args=AttrDict({
                                                 'data_dir':VAL_DATA_DIR,
@@ -139,30 +145,30 @@ def main():
                                                 'masks': None,
                                                 }))
     print("Creating data loaders")
-    train_sampler = torch.utils.data.RandomSampler(dataset)
+    # train_sampler = torch.utils.data.RandomSampler(dataset)
     test_sampler = torch.utils.data.SequentialSampler(dataset_test)
 
-    group_ids = create_aspect_ratio_groups(dataset, k=3)
-    train_batch_sampler = GroupedBatchSampler(train_sampler, group_ids, batch_size=16)
+    # group_ids = create_aspect_ratio_groups(dataset, k=3)
+    # train_batch_sampler = GroupedBatchSampler(train_sampler, group_ids, batch_size=16)
 
     train_collate_fn = unwrap_collate_fn
     data_loader = torch.utils.data.DataLoader(
-        dataset, batch_sampler=train_batch_sampler, num_workers=2, collate_fn=train_collate_fn
+        dataset, batch_size=16,batch_sampler=None,shuffle=True, num_workers=2, collate_fn=train_collate_fn
     )
 
     data_loader_test = torch.utils.data.DataLoader(
         dataset_test, batch_size=1, sampler=test_sampler, num_workers=0, collate_fn=train_collate_fn)
     
     print("Create Model")
-    model = fcos_resnet50_fpn(pretrained=False,num_classes=num_classes)
-    # model = make_custom_object_detection_model_fcos(num_classes)
+    # model = fcos_resnet50_fpn(pretrained=False,num_classes=num_classes+1)
+    model = make_custom_object_detection_model_fcos(num_classes)
     # model = ssd300_vgg16(pretrained=False,num_classes=91)
     model.to(device)
-    parameters = [p for p in model.parameters() if p.requires_grad]
+    # parameters = [p for p in model.parameters() if p.requires_grad]
     
     optimizer = torch.optim.SGD(
-            parameters,
-            lr=0.01,
+            model.parameters(),
+            lr=1e-3,
             momentum=0.9,
             weight_decay=1e-4,
             nesterov="nesterov",
@@ -178,7 +184,7 @@ def main():
     scheduler_cls = WarmupWrapper(MultiStepLR)
     scheduler = scheduler_cls(
         'linear',  # warmup schedule
-        1000,  # warmup_iters
+        100,  # warmup_iters
         0.001,  # warmup_ratio
         optimizer,
         [177429, 236572],  # milestones
@@ -186,30 +192,35 @@ def main():
     )
     print("Start training")
     start_time = time.time()
-    model.train()
-    for e in range(2):
+    
+    losses = []
+    for e in range(20):
         it=0
         pbar = tqdm(enumerate(data_loader),total=len(data_loader))
         # Train Batch
+        model.train()
         for ind, (images, targets) in pbar:
-            optimizer.zero_grad()
             batch_time_start = time.time()
             images = list(image.to(device,non_blocking=True) for image in images)
             targets = [{k: v.to(device,non_blocking=True) for k, v in t.items()} for t in targets]
             loss_dict = model(images, targets)
             losses_reduced = sum(loss for loss in loss_dict.values())
-            loss_value = losses_reduced.item()
+            
             # if ind %10 == 0:
             # print("loss: ",loss_value)
             # print("losses_reduced: ",losses_reduced)
+            optimizer.zero_grad()
             losses_reduced.backward()
             optimizer.step()
+            with torch.no_grad():
+                loss_value = losses_reduced.item()
             total_batch_time = time.time() - batch_time_start
             total_batch_time_str = str(datetime.timedelta(seconds=int(total_batch_time)))
             # print(f"Training time {total_batch_time_str}")
+            if it%10==0:
+                losses.append(loss_value)
             it += 1
             pbar.set_postfix({'loss': loss_value})
-            
             print(ind, scheduler.get_lr())
             scheduler.step()
             # if ind>100:
@@ -218,16 +229,19 @@ def main():
             # break
         # lr_scheduler.step()
 
-        # Eval
+            # Eval
         coco = get_coco_api_from_dataset(data_loader.dataset)
         iou_types = ['bbox']
         coco_evaluator = CocoEvaluator(coco, iou_types)
+        torch.save(model,'model.pth')
         model.eval()
         for ind, (images, targets) in tqdm(enumerate(data_loader_test),total=len(data_loader_test)):
             with torch.no_grad():
                 model_time = time.time()
                 images = list(img.to(device) for img in images)
                 loss_dict, outputs = model(images)
+                # outputs = model(images)
+
                 # print(type(outputs[0]))
                 # print(outputs)
                 outputss = []
@@ -247,10 +261,15 @@ def main():
         # accumulate predictions from all images
         coco_evaluator.accumulate()
         coco_evaluator.summarize()
-    
+        
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print(f"Training time {total_time_str}")
+    import matplotlib.pyplot as plt
+    plt.plot(range(len(losses)),losses )
+    plt.title("Loss")
+    plt.legend(['loss'])
+    plt.savefig("loss.png")
 
 if __name__ == '__main__':
     main()

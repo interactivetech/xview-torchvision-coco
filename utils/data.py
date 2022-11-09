@@ -180,7 +180,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         img_bytes = BytesIO(self.backend.get(os.path.join(self.img_folder, path)))
 
         img = Image.open(img_bytes).convert("RGB")
-
+        # img.save('test.png')
         image_id = self.ids[idx]
         target = {"image_id": image_id, "annotations": target}
         img, target = self.prepare(img, target)
@@ -237,8 +237,8 @@ def build_xview_dataset(image_set, args):
     # }
     # FOR DETERMINED TRAINING, ASSUME AT START OF EXP YOU DOWNLOAD TRAINING JSON FILE
     PATHS = {
-        "train": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02.json")),
-        "val": (os.path.join(root), os.path.join('/tmp/val_sliced_no_neg/',"val_300_02.json")),
+        "train": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02_1k.json")),
+        "val": (os.path.join(root), os.path.join('/tmp/val_sliced_no_neg/',"val_300_02_1k.json")),
     }
     print("PATHS: ",PATHS)
     # ~/data/coco_dataset/annotations/
