@@ -16,57 +16,9 @@ from utils.coco_eval import CocoEvaluator
 import math
 from lr_schedulers import WarmupWrapper
 from torch.optim.lr_scheduler import MultiStepLR
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
-def make_custom_object_detection_model_fcos(num_classes):
-    model = fcos_resnet50_fpn(pretrained=True)  # load an object detection model pre-trained on COCO
-    model.score_thresh = 0.05
-    model.nms_thresh = 0.4
-    model.detections_per_img = 300
-    model.topk_candidates = 300
-    num_anchors = model.head.classification_head.num_anchors
-    model.head.classification_head.num_classes = num_classes
-    print("FOCS num_classes: ",model.head.classification_head.num_classes)
+from utils.model import make_custom_object_detection_model_fcos, build_frcnn_model
 
-    out_channels = model.head.classification_head.conv[9].out_channels
-    cls_logits = torch.nn.Conv2d(out_channels, num_anchors * num_classes, kernel_size=3, stride=1, padding=1)
-    torch.nn.init.normal_(cls_logits.weight, std=0.01)
-    torch.nn.init.constant_(cls_logits.bias, -math.log((1 - 0.01) / 0.01))
-
-    model.head.classification_head.cls_logits = cls_logits
-
-def build_frcnn_model(num_classes):
-    # load an detection model pre-trained on COCO
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-
-    # get the number of input features for the classifier
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    # replace the pre-trained head with a new one
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
-    model.min_size=800
-    model.max_size=1333
-    # RPN parameters
-    model.rpn_pre_nms_top_n_train=2000
-    model.rpn_pre_nms_top_n_test=1000
-    model.rpn_post_nms_top_n_train=2000
-    model.rpn_post_nms_top_n_test=1000
-    model.rpn_nms_thresh=0.7
-    model.rpn_fg_iou_thresh=0.7
-    model.rpn_bg_iou_thresh=0.3
-    model.rpn_batch_size_per_image=256
-    model.rpn_positive_fraction=0.5
-    model.rpn_score_thresh=0.0
-    # Box parameters
-    model.box_score_thresh=0.05
-    model.box_nms_thresh=0.5
-    model.box_detections_per_img=100
-    model.box_fg_iou_thresh=0.5
-    model.box_bg_iou_thresh=0.5
-    model.box_batch_size_per_image=512
-    model.box_positive_fraction=0.25
-    return model
-
-    return model
 def collate_fn(batch):
     return tuple(list(zip(*batch)))
 

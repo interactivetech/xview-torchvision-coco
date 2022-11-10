@@ -14,6 +14,8 @@ import datetime
 from pycocotools.coco import COCO
 from torch.optim.lr_scheduler import MultiStepLR
 from utils.fcos import fcos_resnet50_fpn
+from utils.data import build_dataset,build_xview_dataset, unwrap_collate_fn
+from utils.model import make_custom_object_detection_model_fcos, build_frcnn_model
 
 # from utils.model import get_mv3_fcos_fpn, get_resnet_fcos, get_mobileone_s4_fpn_fcos
 # from model_mobileone import get_mobileone_s4_fpn_fcos
@@ -99,10 +101,11 @@ def get_coco_api_from_dataset(dataset):
     return convert_to_coco_api(dataset)
 
 class COCOReducer(MetricReducer):
-    def __init__(self, base_ds, iou_types, cat_ids=[]):
+    def __init__(self, base_ds, iou_types, cat_ids=[],remapping_dict=None):
         self.base_ds = base_ds
         self.iou_types = iou_types
         self.cat_ids = cat_ids
+        self.remapping_dict = remapping_dict
         self.reset()
 
     def reset(self):
@@ -121,7 +124,7 @@ class COCOReducer(MetricReducer):
                 coco_evaluator.coco_eval[iou_type].params.catIds = self.cat_ids
         for results in per_slot_metrics:
             results_dict = {r[0]: r[1] for r in results}
-            coco_evaluator.update(results_dict)
+            coco_evaluator.update(results_dict,self.remapping_dict)
 
         for iou_type in coco_evaluator.iou_types:
             coco_eval = coco_evaluator.coco_eval[iou_type]
@@ -157,8 +160,10 @@ class ObjectDetectionTrial(PyTorchTrial):
         # define model
         print("self.hparams[model]: ",self.hparams['model'] )
         if self.hparams['model'] == 'resnet_fcos':
+            model = build_frcnn_model(61)
             # model = get_resnet_fcos(91)
-            model = fcos_resnet50_fpn(pretrained=False,num_classes=61)
+            # model = fcos_resnet50_fpn(pretrained=False,num_classes=61)
+            
         # elif self.hparams['model'] == 'mv3_fcos':
         #     model= get_mv3_fcos_fpn(91)
         # elif self.hparams['model'] == 'mobileone_fcos':
@@ -208,36 +213,49 @@ class ObjectDetectionTrial(PyTorchTrial):
         )
 
     def build_training_data_loader(self) -> DataLoader:
-        dataset, num_classes = build_dataset(image_set="train", args=AttrDict({
-                                                'data_dir':self.hparams.data_dir,
-                                                'backend':self.hparams.backend,
-                                                'masks': self.hparams.masks,
+        TRAIN_DATA_DIR='determined-ai-xview-coco-dataset/train_sliced_no_neg/train_images_300_02/'
+
+        dataset, num_classes = build_xview_dataset(image_set='train',args=AttrDict({
+                                                'data_dir':TRAIN_DATA_DIR,
+                                                'backend':'aws',
+                                                'masks': None,
                                                 }))
+        print("--num_classes: ",num_classes)
+
+        # dataset, num_classes = build_dataset(image_set="train", args=AttrDict({
+        #                                         'data_dir':self.hparams.data_dir,
+        #                                         'backend':self.hparams.backend,
+        #                                         'masks': self.hparams.masks,
+        #                                         }))
         train_sampler = torch.utils.data.RandomSampler(dataset)
-        group_ids = create_aspect_ratio_groups(dataset, k=3)
-        train_batch_sampler = GroupedBatchSampler(train_sampler, 
-                                                  group_ids, 
-                                                  batch_size=self.context.get_per_slot_batch_size())
+        # group_ids = create_aspect_ratio_groups(dataset, k=3)
+        # train_batch_sampler = GroupedBatchSampler(train_sampler, 
+        #                                           group_ids, 
+        #                                           batch_size=self.context.get_per_slot_batch_size())
         data_loader = DataLoader(
                                  dataset, 
-                                 batch_sampler=train_batch_sampler, 
+                                 batch_sampler=None,
+                                 shuffle=True,
                                  num_workers=self.hparams.num_workers, 
                                  collate_fn=unwrap_collate_fn)
         print("NUMBER OF BATCHES IN COCO: ",len(data_loader))# 59143, 7392 for mini coco
         return data_loader
 
     def build_validation_data_loader(self) -> DataLoader:
-        dataset_test, _ = build_dataset(image_set="val", args=AttrDict({
-                                                'data_dir':self.hparams.data_dir,
-                                                'backend':self.hparams.backend,
-                                                'masks': self.hparams.masks,
-                                                }))
+        VAL_DATA_DIR='determined-ai-xview-coco-dataset/val_sliced_no_neg/val_images_300_02/'
+        dataset_test, _ = build_xview_dataset(image_set='val',args=AttrDict({
+                                                    'data_dir':VAL_DATA_DIR,
+                                                    'backend':'aws',
+                                                    'masks': None,
+                                                   }))
+        self.dataset_test = dataset_test
         self.base_ds = get_coco_api_from_dataset(dataset_test)
 
         self.reducer = self.context.wrap_reducer(
             COCOReducer(self.base_ds,['bbox'],[]),
             for_training=False,
-            for_validation=True
+            for_validation=True,
+            remapping_dict=self.dataset_test.clstoCatId
         )
         test_sampler = torch.utils.data.SequentialSampler(dataset_test)
         data_loader_test = DataLoader(
@@ -272,7 +290,11 @@ class ObjectDetectionTrial(PyTorchTrial):
     def evaluate_batch(self, batch: TorchData,batch_idx: int) -> Dict[str, Any]:
         images, targets = batch
         model_time_start = time.time()
-        loss_dict, outputs = self.model(images, targets)
+        # loss_dict, outputs = self.model(images, targets)
+        loss_dict = {}
+        loss_dict['loss']=0.0
+        outputs = self.model(images, targets)
+
         model_time = time.time() - model_time_start
         losses_reduced = sum(loss for loss in loss_dict.values())
         outputs = [{k: v.to('cpu') for k, v in t.items()} for t in outputs]

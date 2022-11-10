@@ -254,8 +254,8 @@ def build_xview_dataset(image_set, args):
     PATHS = {
         # "train": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02_1k.json")),
         # "val": (os.path.join(root), os.path.join('/tmp/val_sliced_no_neg/',"val_300_02_1k.json")),
-        "train": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02.json")),
-        "val": (os.path.join(root), os.path.join('/tmp/val_sliced_no_neg/',"val_300_02.json")),
+        "train": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02_1k.json")),
+        "val": (os.path.join(root), os.path.join('/tmp/val_sliced_no_neg/',"val_300_02_1k.json")),
         # "val": (os.path.join(root), os.path.join('/tmp/train_sliced_no_neg/',"train_300_02_1k.json")),
 
     }
