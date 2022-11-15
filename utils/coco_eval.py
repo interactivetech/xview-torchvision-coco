@@ -9,7 +9,8 @@ import utils
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import math
-
+from terminaltables import AsciiTable
+import itertools
 class CocoEvaluator:
     def __init__(self, coco_gt, iou_types):
         if not isinstance(iou_types, (list, tuple)):
@@ -70,7 +71,13 @@ class CocoEvaluator:
                     if not math.isnan(mAP_val):
                         average+=mAP_val
                         cnt+=1
-                    print(cls_name,mAP_val)
+                    # print(cls_name,mAP_val)
+                        num_columns = 2
+            headers = ['category', 'AP']
+            table_data = [headers]
+            table_data+=results_per_category
+            table = AsciiTable(table_data)
+            print('\n' + table.table)
             average/=cnt
             print("mean coco AP: ",average)
             cls_names = []
@@ -83,7 +90,13 @@ class CocoEvaluator:
                     if not math.isnan(mAP_val):
                         average+=mAP_val
                         cnt+=1
-                    print(cls_name+"_50: ", mAP_val)
+                    # print(cls_name+"_50: ", mAP_val)
+            num_columns = 2
+            headers = ['category', 'AP@50']
+            table_data = [headers]
+            table_data+=results_per_category50
+            table = AsciiTable(table_data)
+            print('\n' + table.table)
             average/=cnt
             print("mean coco AP@50: ",average)
             # per class mAP50 metrics

@@ -252,10 +252,10 @@ class ObjectDetectionTrial(PyTorchTrial):
         self.base_ds = get_coco_api_from_dataset(dataset_test)
 
         self.reducer = self.context.wrap_reducer(
-            COCOReducer(self.base_ds,['bbox'],[]),
+            COCOReducer(self.base_ds,['bbox'],[],remapping_dict=self.dataset_test.clstoCatId),
             for_training=False,
             for_validation=True,
-            remapping_dict=self.dataset_test.clstoCatId
+            
         )
         test_sampler = torch.utils.data.SequentialSampler(dataset_test)
         data_loader_test = DataLoader(
