@@ -1,5 +1,5 @@
 # name: resnet_fpn_fcos_coco_dist_warmup_2_agents
-name: resnet_fpn_fcos_xview_dist_warmup
+name: resnet_fpn_frcnn_xview_dist_warmup
 profiling:
  enabled: true
  begin_on_batch: 0
@@ -15,10 +15,10 @@ hyperparameters:
     weight_decay: 1.0e-4
     gamma: 0.1
     warmup: linear
-    warmup_iters: 1000
+    warmup_iters: 200
     warmup_ratio: 0.001
-    step1: 177429 # 3 epochs: 3*59143 == 177429
-    step2: 236572 # 4 epochs: 4*59143 == 236572
+    step1: 3864 # 3 epochs: 3*1288 == 3864
+    step2: 5152 # 4 epochs: 4*1288 == 5152
     # step1: 946288 # 16 epochs: 16*59143 == 946,288
     # step2: 1301146 # 22 epochs: 22*59143 == 1,301,146
     # model: mv3_fcos
@@ -40,11 +40,11 @@ bind_mounts:
     - host_path: /tmp
       container_path: /data
       read_only: false
-scheduling_unit: 2000
+scheduling_unit: 400
 min_validation_period:
     # epochs: 1
     # batches: 59143
-    batches: 19714
+    batches: 1288
     # batches: 5000
 searcher:
   name: single
@@ -54,8 +54,8 @@ searcher:
       # epochs: 26
     #   batches: 1537718 # 26*59143 == 1,537,718
     # batches: 59143
-    batches: 295715 # 5*59143 == 295715
-records_per_epoch: 59143
+    batches: 6440 # 5*1288 == 6440
+records_per_epoch: 1288
 # records_per_epoch: 1600
 resources:
     # slots_per_trial: 16
