@@ -3,8 +3,8 @@
 # mv annotations/instances_train2017.json /tmp
 # mv annotations/instances_val2017.json /tmp
 pip install torch==1.12.1+cu102 torchvision==0.13.1+cu102 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu102
-pip install boto pycocotools attrdict progress torchsummary
-
+pip install boto pycocotools attrdict progress torchsummary ipywidgets sahi
+apt-get update && apt-get install libgl1
 wget "https://determined-ai-xview-coco-dataset.s3.us-west-2.amazonaws.com/train_sliced_no_neg/train_300_02_1k.json"
 mkdir /tmp/train_sliced_no_neg/
 mv train_300_02_1k.json /tmp/train_sliced_no_neg/train_300_02_1k.json 
