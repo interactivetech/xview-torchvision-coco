@@ -86,7 +86,7 @@ def load_dataset(TRAIN_DATA_DIR=None,VAL_DATA_DIR=None,train_batch_size=None,tes
     )
 
     data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, batch_size=test_batch_size, sampler=test_sampler, num_workers=2, collate_fn=train_collate_fn)
+        dataset_test, batch_size=test_batch_size, sampler=test_sampler, num_workers=1, collate_fn=train_collate_fn)
     return dataset, num_classes, dataset_test,data_loader, data_loader_test
 
 def main():
