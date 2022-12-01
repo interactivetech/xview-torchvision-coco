@@ -24,7 +24,11 @@ hyperparameters:
     # step1: 946288 # 16 epochs: 16*59143 == 946,288
     # step2: 1301146 # 22 epochs: 22*59143 == 1,301,146
     # model: mv3_fcos
-    model: fasterrcnn_resnet50_fpn
+    model:
+      type: categorical
+      vals: ['fasterrcnn_resnet50_fpn','fcos_resnet50_fpn', 'ssd300_vgg16','ssdlite320_mobilenet_v3_large','resnet152_fasterrcnn_model','efficientnet_b4_fasterrcnn_model','convnext_large_fasterrcnn_model','convnext_small_fasterrcnn_model']
+    
+    # fasterrcnn_resnet50_fpn
     # model: fcos_resnet50_fpn
     # model: mobileone_fpn
     # model: ssd300_vgg16
@@ -55,20 +59,23 @@ min_validation_period:
     # batches: 100 # for testing
     # batches: 5000
 searcher:
-  name: single
+  name: grid
   metric: mAP
-  smaller_is_better: true
+  smaller_is_better: false
   max_length:
       # epochs: 26
     #   batches: 1537718 # 26*59143 == 1,537,718
     # batches: 59143
-    batches: 38640 # 30*1288 == 6440# Real Training
+    # batches: 38640 # 30*1288 == 38640# Real Training
+    batches: 51520 # 50*1288 == 51520# Real Training
     # batches: 100
+  # max_trials: 4
+
 records_per_epoch: 1288
 # records_per_epoch: 1600
 resources:
     # slots_per_trial: 16
-    slots_per_trial: 8
+    slots_per_trial: 1
     shm_size: 2000000000
 max_restarts: 0
 # environment:

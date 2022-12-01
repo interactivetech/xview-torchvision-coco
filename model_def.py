@@ -15,7 +15,7 @@ from pycocotools.coco import COCO
 from torch.optim.lr_scheduler import MultiStepLR
 from utils.fcos import fcos_resnet50_fpn
 from utils.data import build_dataset,build_xview_dataset, unwrap_collate_fn
-from utils.model import make_custom_object_detection_model_fcos, build_frcnn_model
+from utils.model import make_custom_object_detection_model_fcos, build_frcnn_model, finetune_ssd300_vgg16, get_mobileone_s4_fpn_fcos, finetune_ssdlite320_mobilenet_v3_large, create_resnet152_fasterrcnn_model, create_efficientnet_b4_fasterrcnn_model, create_convnext_large_fasterrcnn_model, create_convnext_small_fasterrcnn_model
 
 # from utils.model import get_mv3_fcos_fpn, get_resnet_fcos, get_mobileone_s4_fpn_fcos
 # from model_mobileone import get_mobileone_s4_fpn_fcos
@@ -159,8 +159,26 @@ class ObjectDetectionTrial(PyTorchTrial):
 
         # define model
         print("self.hparams[model]: ",self.hparams['model'] )
-        if self.hparams['model'] == 'resnet_fcos':
+        if self.hparams['model'] == 'fasterrcnn_resnet50_fpn':
             model = build_frcnn_model(61)
+        elif self.hparams['model'] == 'fcos_resnet50_fpn':
+            model = make_custom_object_detection_model_fcos(61)
+        elif self.hparams['model'] == 'mobileone_fpn':
+            model = get_mobileone_s4_fpn_fcos(61,ckpt_path='/tmp/mobileone_s4.pth.tar')
+        elif self.hparams['model'] == 'ssd300_vgg16':
+            model = finetune_ssd300_vgg16(61)
+        elif self.hparams['model'] == 'ssdlite320_mobilenet_v3_large':
+            model = finetune_ssdlite320_mobilenet_v3_large(61)
+        elif self.hparams['model'] == 'resnet152_fasterrcnn_model':
+            model = create_resnet152_fasterrcnn_model(61)
+        elif self.hparams['model'] == 'efficientnet_b4_fasterrcnn_model':
+            model = create_efficientnet_b4_fasterrcnn_model(61)
+        elif self.hparams['model'] == 'convnext_large_fasterrcnn_model':
+            model = create_convnext_large_fasterrcnn_model(61)
+        elif self.hparams['model'] == 'convnext_small_fasterrcnn_model':
+            model = create_convnext_small_fasterrcnn_model(61)
+        # create_convnext_small_fasterrcnn_model
+        
             # model = get_resnet_fcos(91)
             # model = fcos_resnet50_fpn(pretrained=False,num_classes=61)
             
@@ -265,7 +283,7 @@ class ObjectDetectionTrial(PyTorchTrial):
                             num_workers=self.hparams.num_workers,
                             collate_fn=unwrap_collate_fn)
         self.test_length = len(data_loader_test)# batch size of 2
-        print("Length of Test Dataset: ",data_loader_test)
+        print("Length of Test Dataset: ",len(data_loader_test))
         
         return data_loader_test
     
@@ -292,7 +310,7 @@ class ObjectDetectionTrial(PyTorchTrial):
         model_time_start = time.time()
         # loss_dict, outputs = self.model(images, targets)
         loss_dict = {}
-        loss_dict['loss']=0.0
+        loss_dict['eval_loss']=0.0
         outputs = self.model(images, targets)
 
         model_time = time.time() - model_time_start
@@ -308,7 +326,7 @@ class ObjectDetectionTrial(PyTorchTrial):
         # Run after losses_reduced run:
         loss_dict['model_time'] = model_time
         loss_dict['lr'] = self.scheduler.get_lr()[0]
-        if batch_idx%10 == 0:
-            # is batch idx at 16, or per slot(2 )? I think globally
-            print("{}% done: {}".format((batch_idx+1)/(self.test_length/8),loss_dict,))
+        # if batch_idx%10 == 0:
+        #     # is batch idx at 16, or per slot(2 )? I think globally
+        #     print("{}% done: {}".format((batch_idx+1)/(self.test_length/8),loss_dict,))
         return loss_dict

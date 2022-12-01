@@ -37,7 +37,7 @@ wget https://docs-assets.developer.apple.com/ml-research/datasets/mobileone/mobi
 mv mobileone_s4.pth.tar /tmp/
 
 wget https://determined-ai-xview-coco-dataset.s3.us-west-2.amazonaws.com/1065.png 
-mv 1065.png /run/determined/workdir/
+# mv 1065.png /run/determined/workdir/
 
 wget https://determined-ai-xview-coco-dataset.s3.us-west-2.amazonaws.com/val.json
-mv val.json /run/determined/workdir/
+# mv val.json /run/determined/workdir/
