@@ -13,7 +13,7 @@ import time
 import datetime
 from pycocotools.coco import COCO
 from torch.optim.lr_scheduler import MultiStepLR
-from utils.fcos import fcos_resnet50_fpn
+# from utils.fcos import fcos_resnet50_fpn
 from utils.data import build_dataset,build_xview_dataset, unwrap_collate_fn
 from utils.model import make_custom_object_detection_model_fcos, build_frcnn_model, finetune_ssd300_vgg16, get_mobileone_s4_fpn_fcos, finetune_ssdlite320_mobilenet_v3_large, create_resnet152_fasterrcnn_model, create_efficientnet_b4_fasterrcnn_model, create_convnext_large_fasterrcnn_model, create_convnext_small_fasterrcnn_model
 
@@ -177,6 +177,8 @@ class ObjectDetectionTrial(PyTorchTrial):
             model = create_convnext_large_fasterrcnn_model(61)
         elif self.hparams['model'] == 'convnext_small_fasterrcnn_model':
             model = create_convnext_small_fasterrcnn_model(61)
+        elif self.hparams['model'] == 'resnet152_fpn_fasterrcnn':
+            model = resnet152_fpn_fasterrcnn(61)
         # create_convnext_small_fasterrcnn_model
         
             # model = get_resnet_fcos(91)

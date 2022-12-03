@@ -2,10 +2,10 @@ import sys
 # sys.path.insert(0,'/run/determined/workdir')
 import torch
 import torchvision
-from torchvision.models.detection import FCOS, fcos_resnet50_fpn
+from torchvision.models.detection import FCOS, fcos_resnet50_fpn, FasterRCNN
 from torchvision.models.detection.anchor_utils import AnchorGenerator
 from utils.mobileone_fpn import mobileone
-from torchvision.models.detection.backbone_utils import _mobilenet_extractor, _resnet_fpn_extractor
+# from torchvision.models.detection.backbone_utils import _mobilenet_extractor, _resnet_fpn_extractor
 from torch import nn, Tensor
 from typing import Callable, Dict, List, Optional, Union
 from torchvision.ops.feature_pyramid_network import ExtraFPNBlock, FeaturePyramidNetwork, LastLevelMaxPool
@@ -19,6 +19,44 @@ from torchvision.models.detection.ssdlite import SSDLiteClassificationHead
 from torchvision.models.detection.ssd import SSDClassificationHead
 print("TORCHVISION_VERSION: ",torchvision.__version__, torchvision.__file__)
 print("TORCH_VERSION: ",torch.__version__, torch.__file__)
+
+def _resnet_fpn_extractor(
+    backbone,
+    trainable_layers,
+    returned_layers = None,
+    extra_blocks = None,
+    norm_layer = None,
+):
+
+    # select layers that wont be frozen
+    if trainable_layers < 0 or trainable_layers > 5:
+        raise ValueError(f"Trainable layers should be in the range [0,5], got {trainable_layers}")
+    layers_to_train = ["layer4", "layer3", "layer2", "layer1", "conv1"][:trainable_layers]
+    if trainable_layers == 5:
+        layers_to_train.append("bn1")
+    for name, parameter in backbone.named_parameters():
+        if all([not name.startswith(layer) for layer in layers_to_train]):
+            parameter.requires_grad_(False)
+
+    if extra_blocks is None:
+        extra_blocks = LastLevelMaxPool()
+
+    if returned_layers is None:
+        returned_layers = [1, 2, 3, 4]
+    if min(returned_layers) <= 0 or max(returned_layers) >= 5:
+        raise ValueError(f"Each returned layer should be in the range [1,4]. Got {returned_layers}")
+    return_layers = {f"layer{k}": str(v) for v, k in enumerate(returned_layers)}
+
+    in_channels_stage2 = backbone.inplanes // 8
+    in_channels_list = [in_channels_stage2 * 2 ** (i - 1) for i in returned_layers]
+    out_channels = 256
+    return BackboneWithFPN(
+        backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks, norm_layer=norm_layer
+    )
+def _default_anchorgen():
+    anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
+    aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
+    return AnchorGenerator(anchor_sizes, aspect_ratios)
 
 class Backbone_FPN(nn.Module):
     def __init__(self,backbone: nn.Module,fpn: FeaturePyramidNetwork):
@@ -284,7 +322,28 @@ def create_resnet152_fasterrcnn_model(num_classes=81, pretrained=True, coco_mode
     )
 
     return model
-
+def resnet152_fpn_fasterrcnn(num_classes):
+    '''
+    '''
+    backbone = torchvision.models.resnet152(pretrained=True)
+    backbone.out_channels = 256
+    # print(b.conv1)
+    # layers_to_train = ["layer4", "layer3", "layer2", "layer1", "conv1"]
+    layers_to_train = 3
+    rpn = _resnet_fpn_extractor(backbone,0,norm_layer=nn.BatchNorm2d)
+    # print([i for i in rpn])
+    rpn_anchor_generator = _default_anchorgen()
+    rpn_head = RPNHead(backbone.out_channels, rpn_anchor_generator.num_anchors_per_location()[0], conv_depth=2)
+    box_head = FastRCNNConvFCHead(
+        (backbone.out_channels, 7, 7), [256, 256, 256, 256], [1024], norm_layer=nn.BatchNorm2d
+    )
+    model = FasterRCNN(
+        rpn,
+        num_classes=num_classes,
+        rpn_anchor_generator=rpn_anchor_generator,
+        rpn_head=rpn_head,
+        box_head=box_head)
+    return model
 
 if __name__ == '__main__':
     model = get_mobileone_s4_fpn_fcos(91,ckpt_path='/tmp/mobileone_s4.pth.tar')
