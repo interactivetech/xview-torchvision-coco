@@ -1,1 +1,5 @@
 checkpoints
+*.ipynb
+./.git//*
+./db/*
+./.git//objects/*

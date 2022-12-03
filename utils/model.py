@@ -17,6 +17,10 @@ from functools import partial
 from torchvision.models.detection import _utils as det_utils
 from torchvision.models.detection.ssdlite import SSDLiteClassificationHead
 from torchvision.models.detection.ssd import SSDClassificationHead
+from torchvision.models.detection.rpn import RegionProposalNetwork, RPNHead
+from torchvision.models.detection.backbone_utils import BackboneWithFPN,LastLevelMaxPool
+from torchvision.models.detection.faster_rcnn import FastRCNNConvFCHead
+
 print("TORCHVISION_VERSION: ",torchvision.__version__, torchvision.__file__)
 print("TORCH_VERSION: ",torch.__version__, torch.__file__)
 
